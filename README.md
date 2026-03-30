@@ -50,5 +50,3 @@ Pulze estimates the drift component in real time using only a heart rate monitor
 | Model Deployment   | JSON export (model weights and parameters)      |
 
 ---
-
-## Project Structure
