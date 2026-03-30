@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../core/model_weights.dart';
 import '../core/drift_params.dart';
@@ -7,13 +9,13 @@ import '../core/drift_estimator.dart';
 import '../core/zones.dart';
 import '../core/ride_loader.dart';
 import '../core/ride_row.dart';
+import 'post_ride_summary_screen.dart';
 
 class DemoPlayerScreen extends StatefulWidget {
   final int hrMax;
   final List<double> zoneUpperFrac;
   final double weightKg;
   final int driftStartMinOverride;
-
   final String? rideFilePath;
 
   const DemoPlayerScreen({
@@ -34,8 +36,6 @@ class _DemoPlayerScreenState extends State<DemoPlayerScreen> {
   static const String paramsAsset = 'assets/models/drift_params.json';
   static const String demoCsvAsset = 'assets/models/demo_ride.csv';
 
-  List<RideRow> ride = [];
-
   DriftParams? params;
   DriftEstimator? drift;
   DriftState driftState = DriftState();
@@ -44,7 +44,6 @@ class _DemoPlayerScreenState extends State<DemoPlayerScreen> {
   Timer? timer;
   int i = 0;
 
-  // speed control
   bool speed2x = false;
   int get _tickMs => speed2x ? 100 : 200;
 
@@ -53,16 +52,19 @@ class _DemoPlayerScreenState extends State<DemoPlayerScreen> {
   bool playing = false;
   bool corrActive = false;
 
-  String elapsedStr = "00:00";
+  String elapsedStr = '00:00';
   double elapsedMin = 0.0;
 
+  List<RideRow> ride = [];
   String? loadError;
+
+  bool _exportingAnalysis = false;
 
   String _fmtTime(double sec) {
     final s = sec.round();
     final mm = (s ~/ 60).toString().padLeft(2, '0');
     final ss = (s % 60).toString().padLeft(2, '0');
-    return "$mm:$ss";
+    return '$mm:$ss';
   }
 
   DriftParams _withDriftStartOverride(DriftParams p, int driftStartMinOverride) {
@@ -111,18 +113,16 @@ class _DemoPlayerScreenState extends State<DemoPlayerScreen> {
           zoneUpperFrac: widget.zoneUpperFrac,
         );
         ride = rideRows;
-
         i = 0;
         hr = driftBpm = hrEff = 0;
         zRaw = zEff = 1;
         playing = false;
         corrActive = false;
-        elapsedStr = "00:00";
+        elapsedStr = '00:00';
         elapsedMin = 0.0;
         loadError = null;
       });
 
-      // compute initial frame
       _seekToIndex(0);
     } catch (e) {
       if (!mounted) return;
@@ -143,9 +143,7 @@ class _DemoPlayerScreenState extends State<DemoPlayerScreen> {
   void _start() {
     if (drift == null || params == null || ride.isEmpty) return;
     if (playing) return;
-
     setState(() => playing = true);
-
     timer = Timer.periodic(Duration(milliseconds: _tickMs), (_) {
       if (i >= ride.length) {
         _stop();
@@ -157,9 +155,7 @@ class _DemoPlayerScreenState extends State<DemoPlayerScreen> {
 
   void _stepOne() {
     if (drift == null || params == null || i >= ride.length) return;
-
     final r = ride[i];
-
     final out = drift!.update(
       state: driftState,
       elapsedSeconds: r.tSec,
@@ -173,23 +169,19 @@ class _DemoPlayerScreenState extends State<DemoPlayerScreen> {
       demoCorrMask: r.corrActive == 1,
     );
 
-    final eff = (out["hrEffective"] as double?) ?? r.hr;
-    final corr = (out["corrActive"] as bool?) ?? false;
+    final eff = (out['hrEffective'] as double?) ?? r.hr;
+    final corr = (out['corrActive'] as bool?) ?? false;
 
     if (!mounted) return;
     setState(() {
       hr = r.hr;
-      driftBpm = (out["drift"] as double?) ?? 0.0;
+      driftBpm = (out['drift'] as double?) ?? 0.0;
       hrEff = (eff.isFinite && eff > 0) ? eff : r.hr;
-
       corrActive = corr;
-
       zRaw = zones.zoneOf(hr);
       zEff = zones.zoneOf(hrEff);
-
       elapsedStr = _fmtTime(r.tSec);
       elapsedMin = r.tSec / 60.0;
-
       i += 1;
     });
   }
@@ -209,17 +201,13 @@ class _DemoPlayerScreenState extends State<DemoPlayerScreen> {
     if (drift == null || params == null || ride.isEmpty) return;
     final t = target.clamp(0, ride.length - 1);
 
-    // reset estimator state then replay quickly up to t
     driftState = DriftState();
     int idx = 0;
 
-    double lastHr = 0;
-    double lastEff = 0;
-    double lastDrift = 0;
+    double lastHr = 0, lastEff = 0, lastDrift = 0;
     bool lastCorr = false;
-    int lastZr = 1;
-    int lastZe = 1;
-    String lastElapsed = "00:00";
+    int lastZr = 1, lastZe = 1;
+    String lastElapsed = '00:00';
     double lastElapsedMin = 0;
 
     while (idx <= t) {
@@ -237,19 +225,15 @@ class _DemoPlayerScreenState extends State<DemoPlayerScreen> {
         demoCorrMask: r.corrActive == 1,
       );
 
-      final eff = (out["hrEffective"] as double?) ?? r.hr;
-
+      final eff = (out['hrEffective'] as double?) ?? r.hr;
       lastHr = r.hr;
       lastEff = (eff.isFinite && eff > 0) ? eff : r.hr;
-      lastDrift = (out["drift"] as double?) ?? 0.0;
-      lastCorr = (out["corrActive"] as bool?) ?? false;
-
+      lastDrift = (out['drift'] as double?) ?? 0.0;
+      lastCorr = (out['corrActive'] as bool?) ?? false;
       lastZr = zones.zoneOf(lastHr);
       lastZe = zones.zoneOf(lastEff);
-
       lastElapsed = _fmtTime(r.tSec);
       lastElapsedMin = r.tSec / 60.0;
-
       idx += 1;
     }
 
@@ -270,16 +254,62 @@ class _DemoPlayerScreenState extends State<DemoPlayerScreen> {
     if (params == null || ride.isEmpty) return;
     final sec = params!.driftStartSec.toDouble();
     int idx = 0;
-    while (idx < ride.length && ride[idx].tSec < sec) {
-      idx++;
-    }
+    while (idx < ride.length && ride[idx].tSec < sec) idx++;
     _seekToIndex(idx);
   }
 
-  @override
-  void dispose() {
-    timer?.cancel();
-    super.dispose();
+  Future<void> _openPostRideAnalysis() async {
+    if (ride.isEmpty || params == null) return;
+    setState(() => _exportingAnalysis = true);
+
+    try {
+      final dir = await getTemporaryDirectory();
+      final tmpFile = File('${dir.path}/demo_analysis_temp.csv');
+      final sink = tmpFile.openWrite(mode: FileMode.writeOnly);
+
+      sink.writeln([
+        'elapsedseconds', 'hr', 'Pused', 'Pusedroll60s',
+        'speedkmhclean', 'graderoll2m', 'corractive',
+        'expectedhr', 'effectivehr', 'drift',
+        'rawzone', 'effectivezone', 'steadyok', 'driftallowed',
+      ].join(','));
+
+      for (final r in ride) {
+        sink.writeln([
+          r.tSec.toStringAsFixed(2),
+          r.hr.toStringAsFixed(0),
+          r.pUsed.toStringAsFixed(3),
+          r.pUsed60.toStringAsFixed(3),
+          r.speedKmh.toStringAsFixed(3),
+          r.grade2m.toStringAsFixed(6),
+          r.corrActive.toString(),
+          '0.00',
+          '0.00',
+          '0.000',
+          '0', '0', '0', '0',
+        ].join(','));
+      }
+
+      await sink.flush();
+      await sink.close();
+
+      if (!mounted) return;
+      setState(() => _exportingAnalysis = false);
+
+      await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => PostRideSummaryScreen(
+          filePath: tmpFile.path,
+          hrMax: widget.hrMax,
+          zoneUpperFrac: widget.zoneUpperFrac,
+        ),
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _exportingAnalysis = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not open analysis: $e')),
+      );
+    }
   }
 
   Widget _pill(String text, {IconData? icon}) {
@@ -303,12 +333,18 @@ class _DemoPlayerScreenState extends State<DemoPlayerScreen> {
   }
 
   @override
+  void dispose() {
+    timer?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final ready = drift != null && params != null && ride.isNotEmpty && loadError == null;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.rideFilePath != null ? "Replay Ride" : "Demo Ride Player"),
+        title: Text(widget.rideFilePath != null ? 'Replay Ride' : 'Demo Ride Player'),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -316,33 +352,38 @@ class _DemoPlayerScreenState extends State<DemoPlayerScreen> {
             ? Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Failed to load ride:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const Text('Failed to load ride:',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             Text(loadError!, style: const TextStyle(color: Colors.red)),
             const SizedBox(height: 16),
             ElevatedButton(onPressed: _init, child: const Text('Retry')),
           ],
         )
-            : (!ready)
+            : !ready
             ? const Center(child: CircularProgressIndicator())
             : Column(
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Elapsed $elapsedStr', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                Text('Elapsed $elapsedStr',
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.w800)),
                 Row(
                   children: [
-                    if (corrActive) _pill("Correction active", icon: Icons.auto_fix_high),
+                    if (corrActive)
+                      _pill('Correction active',
+                          icon: Icons.auto_fix_high),
                     const SizedBox(width: 8),
-                    _pill(speed2x ? "2×" : "1×", icon: Icons.speed),
+                    _pill(speed2x ? '2×' : '1×', icon: Icons.speed),
                   ],
-                )
+                ),
               ],
             ),
+
             const SizedBox(height: 14),
 
-            // Big HR circle (Effective)
             Expanded(
               child: Center(
                 child: AspectRatio(
@@ -350,23 +391,35 @@ class _DemoPlayerScreenState extends State<DemoPlayerScreen> {
                   child: Container(
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant, width: 2),
+                      border: Border.all(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .outlineVariant,
+                          width: 2),
                     ),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
                           hrEff.toStringAsFixed(0),
-                          style: const TextStyle(fontSize: 72, fontWeight: FontWeight.w900),
+                          style: const TextStyle(
+                              fontSize: 72,
+                              fontWeight: FontWeight.w900),
                         ),
                         const SizedBox(height: 6),
-                        Text("Effective HR • Z$zEff", style: const TextStyle(color: Colors.grey)),
+                        Text('Effective HR • Z$zEff',
+                            style: const TextStyle(
+                                color: Colors.grey)),
                         const SizedBox(height: 14),
-                        Text("Observed: ${hr.toStringAsFixed(0)} • Z$zRaw",
-                            style: const TextStyle(fontWeight: FontWeight.w700)),
+                        Text(
+                            'Observed: ${hr.toStringAsFixed(0)} • Z$zRaw',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700)),
                         const SizedBox(height: 10),
-                        Text("Drift: ${driftBpm.toStringAsFixed(1)} bpm",
-                            style: const TextStyle(fontWeight: FontWeight.w700)),
+                        Text(
+                            'Drift: ${driftBpm.toStringAsFixed(1)} bpm',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700)),
                       ],
                     ),
                   ),
@@ -376,25 +429,29 @@ class _DemoPlayerScreenState extends State<DemoPlayerScreen> {
 
             const SizedBox(height: 12),
 
-            // Scrubber
             Row(
               children: [
-                Text("${elapsedMin.toStringAsFixed(1)} min", style: const TextStyle(fontWeight: FontWeight.w700)),
+                Text('${elapsedMin.toStringAsFixed(1)} min',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700)),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Slider(
-                    value: i.toDouble().clamp(0, (ride.length - 1).toDouble()),
+                    value: i
+                        .toDouble()
+                        .clamp(0, (ride.length - 1).toDouble()),
                     min: 0,
                     max: (ride.length - 1).toDouble(),
                     onChanged: (v) {
-                      // pause while scrubbing
                       if (playing) _stop();
                       _seekToIndex(v.round());
                     },
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text("${i.clamp(0, ride.length)} / ${ride.length}", style: const TextStyle(color: Colors.grey)),
+                Text(
+                    '${i.clamp(0, ride.length)} / ${ride.length}',
+                    style: const TextStyle(color: Colors.grey)),
               ],
             ),
 
@@ -408,7 +465,7 @@ class _DemoPlayerScreenState extends State<DemoPlayerScreen> {
                     child: ElevatedButton.icon(
                       onPressed: playing ? null : _start,
                       icon: const Icon(Icons.play_arrow),
-                      label: const Text("Play"),
+                      label: const Text('Play'),
                     ),
                   ),
                 ),
@@ -419,7 +476,7 @@ class _DemoPlayerScreenState extends State<DemoPlayerScreen> {
                     child: ElevatedButton.icon(
                       onPressed: playing ? _stop : null,
                       icon: const Icon(Icons.pause),
-                      label: const Text("Pause"),
+                      label: const Text('Pause'),
                     ),
                   ),
                 ),
@@ -441,35 +498,70 @@ class _DemoPlayerScreenState extends State<DemoPlayerScreen> {
                           _start();
                         }
                       },
-                      icon: const Icon(Icons.speed),
-                      label: Text(speed2x ? "Set 1×" : "Set 2×"),
+                      icon: const Icon(Icons.speed, size: 18),
+                      label: Text(speed2x ? '1×' : '2×'),
                     ),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
+                  flex: 2,
                   child: SizedBox(
                     height: 48,
                     child: OutlinedButton.icon(
                       onPressed: _jumpToDriftStart,
-                      icon: const Icon(Icons.skip_next),
-                      label: Text("Jump to ${params!.driftStartMin} min"),
+                      icon: const Icon(Icons.skip_next, size: 18),
+                      label: Text(
+                        'Jump to ${params!.driftStartMin} min',
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 10),
-                Expanded(
-                  child: SizedBox(
-                    height: 48,
-                    child: OutlinedButton.icon(
-                      onPressed: _reset,
-                      icon: const Icon(Icons.refresh),
-                      label: const Text("Reset"),
+                SizedBox(
+                  height: 48,
+                  width: 48,
+                  child: OutlinedButton(
+                    onPressed: _reset,
+                    style: OutlinedButton.styleFrom(
+                      padding: EdgeInsets.zero,
                     ),
+                    child: const Icon(Icons.refresh, size: 20),
                   ),
                 ),
               ],
             ),
+
+            const SizedBox(height: 10),
+
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                onPressed: _exportingAnalysis
+                    ? null
+                    : _openPostRideAnalysis,
+                icon: _exportingAnalysis
+                    ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2))
+                    : const Icon(Icons.bar_chart_rounded),
+                label: const Text('View Post-Ride Analysis'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context)
+                      .colorScheme
+                      .primaryContainer,
+                  foregroundColor: Theme.of(context)
+                      .colorScheme
+                      .onPrimaryContainer,
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 6),
           ],
         ),
       ),

@@ -38,7 +38,7 @@ class _AppShellState extends State<AppShell> {
         selectedIndex: _idx,
         onDestinationSelected: (v) => setState(() => _idx = v),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.today_outlined), selectedIcon: Icon(Icons.today), label: 'Today'),
+          NavigationDestination(icon: Icon(Icons.today_outlined), selectedIcon: Icon(Icons.today), label: 'Home'),
           NavigationDestination(icon: Icon(Icons.fiber_manual_record_outlined), selectedIcon: Icon(Icons.fiber_manual_record), label: 'Record'),
           NavigationDestination(icon: Icon(Icons.history_outlined), selectedIcon: Icon(Icons.history), label: 'History'),
           NavigationDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: 'Settings'),

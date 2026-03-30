@@ -8,7 +8,7 @@ class LiveFeatures {
   final double pUsed;
   final double pUsedRoll60;
 
-  // ✅ convenience flag (simple, defensible)
+  //  convenience flag
   final bool steadyRaw;
 
   LiveFeatures({
@@ -22,8 +22,8 @@ class LiveFeatures {
 }
 
 class FeatureBuilder {
-  /// User config: total mass (rider + bike etc.)
-  /// Used only for the climb term in the proxy workload.
+  /// User config like total mass (rider + bike)
+  /// Used only for the climb term in the proxy workload
   double massKg;
 
   double get weightKg => massKg;
@@ -32,7 +32,7 @@ class FeatureBuilder {
   FeatureBuilder({double massKg = 70.0, double? weightKg})
       : massKg = (weightKg ?? massKg);
 
-  // last GPS for delta-based speed/grade
+  // last GPS for delta-based speed and grade
   GpsSample? _prev;
 
   // time buffers for smoothing
@@ -40,7 +40,7 @@ class FeatureBuilder {
   final List<(double tSec, double p)> _pBuf = [];
 
   LiveFeatures updateFromGps(GpsSample s) {
-    // Speed: use GPS speed if provided  or else compute from haversine deltas
+    // we use GPS speed if provided or else we compute from haversine deltas
     double speedMps = s.speedMps;
     if (speedMps <= 0.1 && _prev != null) {
       final dt = max(0.2, s.tSec - _prev!.tSec);
@@ -49,7 +49,7 @@ class FeatureBuilder {
     }
     final speedKmh = max(0.0, speedMps * 3.6);
 
-    // Grade: dAlt / horizDist (clamped)
+    // Grade is dAlt and horizDist
     double grade = 0.0;
     if (_prev != null) {
       final dist = _haversineM(_prev!.lat, _prev!.lon, s.lat, s.lon);
@@ -65,7 +65,7 @@ class FeatureBuilder {
     _trimBuf(_gradeBuf, windowSec: 120.0, now: s.tSec);
     final gradeRoll2m = _mean(_gradeBuf.map((e) => e.$2).toList());
 
-    // Workload proxy: aero ~ v^3, rolling ~ v, climb ~ m*g*grade*v
+    // Workload proxy
     final v = speedMps;
     const g = 9.81;
 
@@ -85,8 +85,8 @@ class FeatureBuilder {
     // speed clean clamp
     final speedKmhClean = speedKmh.clamp(0.0, 80.0);
 
-    // simple steady flag for gating:
-    // "moving" threshold. DriftEstimator still does stricter gating internally.
+    // simple steady flag for gating
+
     final steadyRaw = speedKmhClean >= 2.0;
 
     return LiveFeatures(

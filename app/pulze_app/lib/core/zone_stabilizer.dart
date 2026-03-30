@@ -11,7 +11,7 @@
 
     ZoneStabilizer({required this.dwellSamples});
 
-    /// Feed raw zone (1..5) and get stabilized zone (1..5).
+
     int update(ZoneStabilizerState s, int newZone) {
       if (!s.initialized) {
         s.currentZone = newZone;
@@ -22,21 +22,21 @@
       }
 
       if (newZone == s.currentZone) {
-        // reset candidate if we are back to current
+
         s.candidateZone = s.currentZone;
         s.candidateCount = 0;
         return s.currentZone;
       }
 
-      // new zone differs from current
+
       if (newZone != s.candidateZone) {
-        // start tracking a new candidate
+
         s.candidateZone = newZone;
         s.candidateCount = 1;
         return s.currentZone;
       }
 
-      // continuing same candidate
+
       s.candidateCount += 1;
       if (s.candidateCount >= dwellSamples) {
         s.currentZone = s.candidateZone;

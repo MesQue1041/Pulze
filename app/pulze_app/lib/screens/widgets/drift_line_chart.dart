@@ -31,7 +31,7 @@ class DriftLineChart extends StatelessWidget {
       maxY = 10;
     }
 
-    // Drift is usually 0..~15 so we keep it tight.
+
     final pad = max(1.0, (maxY - minY) * 0.15);
     minY -= pad;
     maxY += pad;

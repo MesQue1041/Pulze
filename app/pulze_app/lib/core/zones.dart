@@ -1,9 +1,7 @@
 class HrZones {
   final double hrMax;
 
-  /// Upper bounds for zones 1..4 expressed as fraction of HRmax.
-  /// Zone 5 is implicitly 1.0.
-  /// Example: [0.60, 0.70, 0.80, 0.90]
+
   final List<double> zoneUpperFrac;
 
   HrZones({

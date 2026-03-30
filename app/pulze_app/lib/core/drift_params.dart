@@ -23,22 +23,21 @@ class DriftParams {
   final int? minSteadyForDriftSec;
   final int calibMinSession;
 
-  // App-only stability knobs
+  // App only stability knobs
   final int debounceOnSec;
   final int debounceOffSec;
   final int holdGapSec;
 
-  // alibration requirements
+  // calibration requirements
   final int minCalibSamples;
 
   // Safety clamps
   final double sessionOffsetClampBpm;
 
-  //  Demo / App behavior knob
-  // Drift is not accumulated before this minute
+
   final int driftStartMin;
 
-  // Drift slew-rate limiter (prevents unrealistic rapid jumps)
+  // Drift slew-rate limiter
   final double driftMaxChangeBpmPerMin;
 
   DriftParams({
@@ -65,7 +64,7 @@ class DriftParams {
     this.driftMaxChangeBpmPerMin = 3.0,
   });
 
-  // Derived helpers
+  //  helpers
   int get posPersistSamples => max1((posPersistSec / resampleSeconds).round());
   int get calibSec => calibMinSession * 60;
   int get baselineSec => baselineMin * 60;
@@ -78,7 +77,7 @@ class DriftParams {
 
   int get driftStartSec => driftStartMin * 60;
 
-  // Max drift delta per estimator update sample
+  // Max drift delta per estimator
   double get driftMaxDeltaPerSample =>
       driftMaxChangeBpmPerMin * (resampleSeconds / 60.0);
 

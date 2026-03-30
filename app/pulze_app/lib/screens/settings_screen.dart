@@ -112,7 +112,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const Divider(),
           const SizedBox(height: 14),
 
-          // Advanced (collapsed by default)
+
           InkWell(
             borderRadius: BorderRadius.circular(12),
             onTap: () => setState(() => advancedOpen = !advancedOpen),
@@ -188,7 +188,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _zoneEditor(PulzeSettings s) {
-    // Expect 5 values: Z1..Z5 upper bounds (fractions of HRmax)
+
     final z = List<double>.from(s.zoneUpperFrac);
 
     Widget oneRow(int idx, String label, double min, double max) {
@@ -202,7 +202,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         onChanged: (v) {
           z[idx] = v;
 
-          // Keep monotonic increasing and clamp last to 1.0
+
           for (int i = 1; i < z.length; i++) {
             if (z[i] < z[i - 1]) z[i] = z[i - 1];
           }
@@ -220,7 +220,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         oneRow(1, 'Zone 2 upper', 0.50, 0.90),
         oneRow(2, 'Zone 3 upper', 0.60, 0.95),
         oneRow(3, 'Zone 4 upper', 0.70, 0.99),
-        // Zone 5 upper is always 1.0 in most schemes so we keep it locked
+
         Container(
           margin: const EdgeInsets.only(bottom: 10),
           padding: const EdgeInsets.all(14),

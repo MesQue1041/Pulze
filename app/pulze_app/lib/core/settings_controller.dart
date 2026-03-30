@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 class PulzeSettings {
   // Profile
   int age;
@@ -12,7 +14,7 @@ class PulzeSettings {
 
   // Zones (fractions of HRmax)
   bool useCustomZones;
-  List<double> zoneUpperFrac; // len 5, last should be 1.0
+  List<double> zoneUpperFrac;
 
   PulzeSettings({
     this.age = 24,
@@ -34,24 +36,46 @@ class PulzeSettings {
   }
 }
 
-class SettingsController {
+class SettingsController extends ChangeNotifier {
   PulzeSettings settings = PulzeSettings();
 
   // Profile
-  void setAge(int v) => settings.age = v;
-  void setWeightKg(double v) => settings.weightKg = v;
+  void setAge(int v) {
+    settings.age = v;
+    notifyListeners();
+  }
+
+  void setWeightKg(double v) {
+    settings.weightKg = v;
+    notifyListeners();
+  }
 
   // HRmax
-  void setUseDefaultHrMax(bool v) => settings.useDefaultHrMax = v;
+  void setUseDefaultHrMax(bool v) {
+    settings.useDefaultHrMax = v;
+    notifyListeners();
+  }
+
   void setCustomHrMax(double v) {
     settings.customHrMax = v;
     settings.useDefaultHrMax = false;
+    notifyListeners();
   }
 
   // Drift
-  void setDriftStartMin(int v) => settings.driftStartMin = v;
+  void setDriftStartMin(int v) {
+    settings.driftStartMin = v;
+    notifyListeners();
+  }
 
   // Zones
-  void setUseCustomZones(bool v) => settings.useCustomZones = v;
-  void setZoneUpperFrac(List<double> v) => settings.zoneUpperFrac = v;
+  void setUseCustomZones(bool v) {
+    settings.useCustomZones = v;
+    notifyListeners();
+  }
+
+  void setZoneUpperFrac(List<double> v) {
+    settings.zoneUpperFrac = v;
+    notifyListeners();
+  }
 }

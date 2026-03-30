@@ -24,8 +24,12 @@ class GpsService {
   Stream<GpsSample> get stream => _ctrl.stream;
 
   StreamSubscription<Position>? _sub;
+  Timer? _fallbackTimer;
   final Stopwatch _sw = Stopwatch();
   bool _running = false;
+
+
+  Position? _lastPos;
 
   Future<bool> ensureReady() async {
     final enabled = await Geolocator.isLocationServiceEnabled();
@@ -44,35 +48,57 @@ class GpsService {
   Future<void> start() async {
     if (_running) return;
     _running = true;
+    _lastPos = null;
 
     _sw
       ..reset()
       ..start();
 
+
     const settings = LocationSettings(
       accuracy: LocationAccuracy.bestForNavigation,
-      distanceFilter: 1,
+      distanceFilter: 0,
     );
 
-    _sub = Geolocator.getPositionStream(locationSettings: settings).listen((pos) {
-      final t = _sw.elapsedMilliseconds / 1000.0;
+    _sub = Geolocator.getPositionStream(locationSettings: settings).listen(
+          (pos) {
+        _lastPos = pos;
+        _emit(pos);
+      },
+      onError: (e) {
+        print('GPS stream error: $e');
+      },
+    );
 
-      _ctrl.add(GpsSample(
-        tSec: t,
-        lat: pos.latitude,
-        lon: pos.longitude,
-        speedMps: (pos.speed.isFinite ? pos.speed : 0.0),
-        altitudeM: (pos.altitude.isFinite ? pos.altitude : 0.0),
-        accuracyM: pos.accuracy.isFinite ? pos.accuracy : null,
-      ));
+
+    _fallbackTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!_running) return;
+      final p = _lastPos;
+      if (p != null) _emit(p);
     });
+  }
+
+  void _emit(Position pos) {
+    if (!_running || _ctrl.isClosed) return;
+    final t = _sw.elapsedMilliseconds / 1000.0;
+    _ctrl.add(GpsSample(
+      tSec: t,
+      lat: pos.latitude,
+      lon: pos.longitude,
+      speedMps: pos.speed.isFinite ? pos.speed : 0.0,
+      altitudeM: pos.altitude.isFinite ? pos.altitude : 0.0,
+      accuracyM: pos.accuracy.isFinite ? pos.accuracy : null,
+    ));
   }
 
   void stop() {
     _running = false;
     _sw.stop();
+    _fallbackTimer?.cancel();
+    _fallbackTimer = null;
     _sub?.cancel();
     _sub = null;
+    _lastPos = null;
   }
 
   void dispose() {

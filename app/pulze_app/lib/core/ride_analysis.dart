@@ -74,7 +74,7 @@ class RideAnalyzer {
     final est = DriftEstimator(weights: weights, p: params);
     final st = DriftState();
 
-    // assume constant cadence from params but we’ll also compute dt from timestamps safely
+
     double t0 = rows.first.tSec;
     double tEnd = rows.last.tSec;
 
@@ -114,7 +114,7 @@ class RideAnalyzer {
         speedKmh: r.speedKmh,
         gradeRoll2m: r.grade2m,
         steadyRaw: steadyRaw,
-        demoMode: true, // important: reproduce what happened in the recorded file
+        demoMode: true,
         demoCorrMask: corrMask,
       );
 
@@ -142,7 +142,7 @@ class RideAnalyzer {
         p60Count++;
       }
 
-      // dt to allocate time-in-zone
+
       final double dt = (i == 0)
           ? params.resampleSeconds.toDouble()
           : max(0.0, rows[i].tSec - rows[i - 1].tSec);

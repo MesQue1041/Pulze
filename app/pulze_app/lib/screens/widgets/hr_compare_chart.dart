@@ -2,11 +2,13 @@ import 'dart:math';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
+const Color _kObserved  = Color(0xFF5BC8F5);
+const Color _kEffective = Color(0xFFFF8C55);
+
 class HrCompareChart extends StatelessWidget {
   final List<double> xMin;
   final List<double> hrObserved;
   final List<double> hrEffective;
-
   final double height;
 
   const HrCompareChart({
@@ -20,7 +22,10 @@ class HrCompareChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final n = min(xMin.length, min(hrObserved.length, hrEffective.length));
-    if (n == 0) return const SizedBox(height: 200, child: Center(child: Text("No data")));
+    if (n == 0) {
+      return const SizedBox(
+          height: 200, child: Center(child: Text('No data')));
+    }
 
     double minY = 1e9, maxY = -1e9;
     void upd(double v) {
@@ -65,14 +70,17 @@ class HrCompareChart extends StatelessWidget {
               gridData: const FlGridData(show: true),
               borderData: FlBorderData(show: true),
               titlesData: FlTitlesData(
-                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false)),
+                topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false)),
                 bottomTitles: AxisTitles(
                   sideTitles: SideTitles(
                     showTitles: true,
                     reservedSize: 26,
                     interval: _niceInterval(xMin.last),
-                    getTitlesWidget: (v, meta) => Text(v.toStringAsFixed(0)),
+                    getTitlesWidget: (v, meta) =>
+                        Text(v.toStringAsFixed(0)),
                   ),
                 ),
                 leftTitles: AxisTitles(
@@ -80,24 +88,24 @@ class HrCompareChart extends StatelessWidget {
                     showTitles: true,
                     reservedSize: 42,
                     interval: _niceInterval(maxY - minY),
-                    getTitlesWidget: (v, meta) => Text(v.toStringAsFixed(0)),
+                    getTitlesWidget: (v, meta) =>
+                        Text(v.toStringAsFixed(0)),
                   ),
                 ),
               ),
               lineBarsData: [
-                // Observed HR (solid, thicker)
                 LineChartBarData(
                   spots: spots(hrObserved),
                   isCurved: true,
+                  color: _kObserved,
                   barWidth: 3,
                   dotData: const FlDotData(show: false),
                 ),
-                // Effective HR (dashed)
                 LineChartBarData(
                   spots: spots(hrEffective),
                   isCurved: true,
-                  barWidth: 2,
-                  dashArray: [6, 6],
+                  color: _kEffective,
+                  barWidth: 3,
                   dotData: const FlDotData(show: false),
                 ),
               ],
@@ -123,70 +131,37 @@ class _Legend extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget row({
-      required Widget sample,
-      required String label,
-    }) {
+    Widget item(Color color, String label) {
       return Padding(
-        padding: const EdgeInsets.only(right: 14, bottom: 6),
+        padding: const EdgeInsets.only(right: 16, bottom: 6),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            sample,
+            Container(
+              width: 26,
+              height: 3,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
             const SizedBox(width: 6),
-            Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            Text(label,
+                style: const TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w600)),
           ],
         ),
       );
     }
 
-    Widget solidSample() => SizedBox(
-      width: 26,
-      height: 10,
-      child: CustomPaint(painter: _SolidLinePainter()),
-    );
-
-    Widget dashedSample() => SizedBox(
-      width: 26,
-      height: 10,
-      child: CustomPaint(painter: _DashedLinePainter()),
-    );
-
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Wrap(
         children: [
-          row(sample: solidSample(), label: "Observed HR"),
-          row(sample: dashedSample(), label: "Effective HR"),
+          item(_kObserved,  'Observed HR'),
+          item(_kEffective, 'Effective HR'),
         ],
       ),
     );
   }
-}
-
-class _SolidLinePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final p = Paint()..strokeWidth = 3;
-    canvas.drawLine(Offset(0, size.height / 2), Offset(size.width, size.height / 2), p);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class _DashedLinePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final p = Paint()..strokeWidth = 2;
-    final y = size.height / 2;
-    double x = 0;
-    while (x < size.width) {
-      canvas.drawLine(Offset(x, y), Offset(min(x + 6, size.width), y), p);
-      x += 12;
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

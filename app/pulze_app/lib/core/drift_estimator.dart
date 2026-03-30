@@ -101,7 +101,9 @@ class DriftEstimator {
 
   void _pushP(DriftState s, double pUsed) {
     s.pWindow.add(pUsed);
-    if (s.pWindow.length > p.pStdWindowSamples) s.pWindow.removeAt(0);
+    if (s.pWindow.length > p.pStdWindowSamples) {
+      s.pWindow.removeAt(0);
+    }
   }
 
   bool _steadyGated({
@@ -116,7 +118,9 @@ class DriftEstimator {
     if (speedKmh < p.speedMinActive) return false;
 
     _pushP(s, pUsed);
-    if (_std(s.pWindow).isFinite && _std(s.pWindow) > p.pStdMax60s) return false;
+
+    final pStd = _std(s.pWindow);
+    if (pStd.isFinite && pStd > p.pStdMax60s) return false;
 
     final last = s.lastP;
     s.lastP = pUsed;
@@ -141,7 +145,6 @@ class DriftEstimator {
     required double speedKmh,
     required double gradeRoll2m,
     required bool steadyRaw,
-
     bool demoMode = false,
     bool? demoCorrMask,
   }) {
@@ -160,11 +163,9 @@ class DriftEstimator {
       speedKmh: speedKmh,
     );
 
-    // corr gating
     final corrDebounced = _updateCorrActive(state, steadyOk);
     final bool corr = demoMode ? (demoCorrMask ?? corrDebounced) : corrDebounced;
 
-    // Session offset calibration
     if (!state.hasSessionOffset && corr && elapsedSeconds <= p.calibSec) {
       state.calibResiduals.add(hr - expected);
     }
@@ -181,23 +182,19 @@ class DriftEstimator {
 
     final resid = hr - expectedAdj;
 
-    // Baseline residual removal
     if (!state.hasBaseline && corr && elapsedSeconds <= p.baselineSec) {
       state.baselineResiduals.add(resid);
     }
     if (!state.hasBaseline &&
-        (state.baselineResiduals.length >= 20 || elapsedSeconds > p.baselineSec)) {
+        (state.baselineResiduals.length >= 20 ||
+            elapsedSeconds > p.baselineSec)) {
       state.baselineResidual = _median(state.baselineResiduals);
       state.hasBaseline = true;
     }
 
     final residAdj = resid - (state.hasBaseline ? state.baselineResidual : 0.0);
 
-    // Drift allowed only after driftStartMin
     final bool allowDriftNow = elapsedSeconds >= p.driftStartSec;
-
-    // Hard cap
-    const double hardCap = 12.0;
 
     if (allowDriftNow && corr && residAdj >= p.posResidThresh) {
       state.posRun++;
@@ -211,7 +208,7 @@ class DriftEstimator {
       double proposed =
           p.ewmaAlpha * residAdj + (1.0 - p.ewmaAlpha) * state.drift;
 
-      proposed = proposed.clamp(0.0, hardCap);
+      proposed = proposed.clamp(0.0, p.driftClipBpm);
 
       state.drift =
           _clampDelta(state.drift, proposed, p.driftMaxDeltaPerSample);

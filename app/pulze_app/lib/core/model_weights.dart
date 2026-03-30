@@ -1,9 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
 
-/// Holds the linear model weights exported from Colab:
-/// expected_hr_global.json
-///
 /// Expected JSON fields:
 /// - feat_cols
 /// - scaler_mean
